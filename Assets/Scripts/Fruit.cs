@@ -3,34 +3,85 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Pool;
 
-public class Fruit : MonoBehaviour
+public class Fruit : MoveUpObjects
 {
-    [SerializeField] Rigidbody rb;
-    public IObjectPool<Fruit> PoolParent { get; set; }
+    protected Rigidbody rb;
+    protected Collider objectCollider;
+    [Header("Slice")]
+    public GameObject whole;
+    public GameObject sliced;
+    private ParticleSystem fruitEffect;
+    public int point = 10;
 
-    public Fruit SetActive(bool value)
+    public void Start()
     {
-        gameObject.SetActive(value);
-        return this;
+        fruitEffect = GetComponentInChildren<ParticleSystem>();
+        rb = GetComponent<Rigidbody>();
+        objectCollider = GetComponent<Collider>();
+        ForceObject(rb);
+        transform.position = GetRandomPosition();
     }
-    public Fruit SetTransformParent(Transform parent)
+
+    private void OnTriggerEnter(Collider other)
     {
-        transform.SetParent(parent);
-        return this;
+        if (other.CompareTag("Destroy"))
+        {
+            Spawner.Instance.Despawn(this);
+        }
+        if (other.CompareTag("Player"))
+        {
+            Slice blade = other.GetComponent<Slice>();
+            SliceFruit(blade.direction, blade.transform.position, blade.sliceForce);
+        }
     }
-    public Fruit SetLocalPosition(Vector3 localPos)
+
+    private void SliceFruit(Vector3 direction, Vector3 position, float force)
     {
-        transform.position = localPos;
-        return this;
+        // Increase Score
+        GameManager.Instance.IncreaseScore(point);
+       
+        objectCollider.enabled = false;
+
+        fruitEffect.Play();
+
+        whole.SetActive(false);
+        sliced.SetActive(true);
+        var angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+        sliced.transform.rotation = Quaternion.Euler(0f, 0f, angle);
+
+        Rigidbody[] slices = sliced.GetComponentsInChildren<Rigidbody>();
+        foreach (var slice in slices)
+        {
+            slice.velocity = rb.velocity;
+            slice.AddForceAtPosition(direction * force, position, ForceMode.Impulse);
+        }
     }
-    public Fruit SetLocalRotation(Quaternion localRot)
+    
+}
+
+public abstract class MoveUpObjects : MonoBehaviour
+{
+
+    public float minForce = 19f;
+    public float maxForce = 24f;
+    public float angleRange = 15f;
+    public float xRange = 5f;
+    public float zRange = 1f;
+    public float yPosition = -10f;
+
+    public void ForceObject(Rigidbody rb)
     {
-        transform.rotation = localRot;
-        return this;
+        var force = Random.Range(minForce, maxForce);
+        rb.AddForce(force * transform.up, ForceMode.Impulse);
+        rb.AddTorque(RandomTorque(), RandomTorque(), RandomTorque(), ForceMode.Impulse);
     }
-    public Fruit SetRigidbodyVelocity(Vector3 force, ForceMode forceMode = ForceMode.Impulse)
+    private float RandomTorque()
     {
-        rb.AddForce(force, forceMode);
-        return this;
+        return Random.Range(-angleRange, angleRange);
+    }
+    protected Vector3 GetRandomPosition()
+    {
+        var randomPos = new Vector3(Random.Range(-xRange, xRange), yPosition, Random.Range(-zRange, zRange));
+        return randomPos;
     }
 }

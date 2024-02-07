@@ -3,88 +3,89 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
 using UnityEngine;
+using UnityEngine.Pool;
 using Random = UnityEngine.Random;
 
 public class Spawner : MonoBehaviour
 {
-    private Collider spawnArea;
-    public float minSpawnDelay = 0.25f;
-    public float maxSpawnDelay = 1f;
-    public float minAngle = -15f;
-    public float maxAngle = 15f;
-    public float minForce = 19f;
-    public float maxForce = 24f;
-    public float lifeTime = 5f;
-    public FruitPool FruitPool;
-    private void Start()
+    private Queue<Fruit> fruitQueue;
+    public Fruit[] fruitPrefabs;
+    public GameObject bombPrefab;
+    public float bombChance = 0.05f;
+
+    [SerializeField] private int amount = 10;
+    public float spawnRate = 1f;
+    private static Spawner instance;
+    public static Spawner Instance
     {
-        spawnArea = GetComponent<Collider>();
-        FruitPool = GetComponent<FruitPool>();
-    }
-
-    private void OnEnable()
-    {
-        //StartCoroutine(Spawn());
-    }
-
-    private void OnDisable()
-    {
-        StopAllCoroutines();
-    }
-
-    private void Update() {
-        //StartCoroutine(Spawn());
-        Debug.Log(FruitPool.fruitPool.CountAll);
-    }
-
-
- /* 
-    private IEnumerator Spawn()
-    {
-       
-        while (enabled) // enabled
+        get
         {
-            Debug.Log(FruitPool.fruitPool.CountAll);
-            yield return new WaitForSeconds(2f);
-            var fruit = FruitPool.fruitPool.Get();
-            
-            fruit.SetActive(true)
-            .SetTransformParent(transform)
-            .SetLocalPosition(GetRandomPosition())
-            .SetLocalRotation(GetRandomRotation())
-            .SetRigidbodyVelocity(GetRandomForce(fruit), ForceMode.Impulse);
-
-            Debug.Log(fruit);
-
-            StartCoroutine(DeactiveFruit(fruit));
-
-            yield return new WaitForSeconds(Random.Range(minSpawnDelay, maxSpawnDelay));
+            if (instance == null)
+            {
+                instance = FindObjectOfType<Spawner>();
+            }
+            return instance;
         }
     }
-        */
+    private void Awake()
+    {
+        if (instance == null)
+        {
+            instance = this;
+        }
+        fruitQueue = new Queue<Fruit>();
+    }
+    private void Start()
+    {
+        //CreateFruitPool();
+        CreateFruitPool();
+        Debug.Log(fruitQueue.Count);
+        StartCoroutine(StartSpawning());
 
-    private IEnumerator DeactiveFruit(Fruit fruit)
-    {
-        yield return new WaitForSeconds(lifeTime);
-        FruitPool.fruitPool.Release(fruit);
-    }
-    private Vector3 GetRandomForce(Fruit fruit)
-    {
-        var force = Random.Range(minForce, maxForce);
-        return force * fruit.transform.up;
     }
 
-    private Quaternion GetRandomRotation()
+    private void CreateFruitPool()
     {
-        var rotation = Quaternion.Euler(0, 0, Random.Range(minAngle, maxAngle));
-        return rotation;
+        for (int i = 0; i < amount; i++)
+        {
+            var fruit = CreateRandomFruit();
+            fruitQueue.Enqueue(fruit);
+            fruit.gameObject.SetActive(false);
+        }
     }
-    private Vector3 GetRandomPosition()
+
+    private Fruit CreateRandomFruit()
     {
-        var positon = new Vector3();
-        positon.x = Random.Range(spawnArea.bounds.min.x, spawnArea.bounds.max.x);
-        positon.y = Random.Range(spawnArea.bounds.min.y, spawnArea.bounds.max.y);
-        positon.z = Random.Range(spawnArea.bounds.min.z, spawnArea.bounds.max.z);
-        return positon;
+        var randomRange = Random.Range(0, fruitPrefabs.Length);
+        var fruit = Instantiate(fruitPrefabs[randomRange], transform.position, Quaternion.identity);
+        return fruit;
+    }
+    public void Spawn()
+    {
+        if (fruitQueue.Count <= 0)
+        {
+            CreateFruitPool();
+        }
+        var fruit = fruitQueue.Dequeue();
+        fruit.gameObject.SetActive(true);
+        if (Random.value < bombChance){
+            var bomb = Instantiate(bombPrefab, transform.position, Quaternion.identity);
+        }
+
+    }
+
+    public void Despawn(Fruit fruit)
+    {
+        fruitQueue.Enqueue(fruit);
+        fruit.gameObject.SetActive(false);
+    }
+
+    private IEnumerator StartSpawning()
+    {
+        while (true)
+        {
+            Spawn();
+            yield return new WaitForSeconds(spawnRate);
+        }
     }
 }
